@@ -1,10 +1,14 @@
 #pragma once
 
-typedef void (* DeviceFoundCallback)(const wchar_t*, const wchar_t*);
+typedef void (*DeviceFoundCallback)(const wchar_t*, const wchar_t*);
+typedef void (*ServiceListCallback)(const wchar_t*);
 
 extern "C" {
     PLUGIN_API void StartDeviceWatcher();
-    PLUGIN_API void RegisterCallback(DeviceFoundCallback callback);
+    PLUGIN_API void DeviceFound(DeviceFoundCallback callback);
+    PLUGIN_API void SelectDevice(const wchar_t*);
+    PLUGIN_API void ServiceList(ServiceListCallback callback);
+    PLUGIN_API void SelectService(const wchar_t* uuid);
 }
 
 /*class BLEManager {

@@ -1,6 +1,6 @@
 #include "pch.h"
 #include "BLEManager.h"
-
+#pragma comment(lib, "windowsapp")
 using namespace std;
 using namespace winrt;
 using namespace Windows::Foundation;
@@ -11,12 +11,13 @@ using namespace Windows::Devices::Bluetooth::Advertisement;
 using namespace Windows::Storage::Streams;
 using namespace Windows::Devices::Bluetooth::GenericAttributeProfile;
 
-std::vector<DeviceInformation> bleDevices;
+std::vector<DeviceInformation> bleDevices = {};
 BluetoothLEDevice bleDevice{ nullptr };
 DeviceWatcher deviceWatcher{ nullptr };
 DeviceFoundCallback deviceFoundCallback = nullptr;
+ServiceListCallback serviceListCallback = nullptr;
 
-DeviceWatcher::Added_revoker deviceWatcherAddedRevoker;
+IVectorView<GattDeviceService> deviceServices;
 
 std::wstring to_wstring_guid(GUID guid) {
     wchar_t buffer[64];
@@ -32,21 +33,23 @@ std::wstring to_wstring_guid(GUID guid) {
     return buffer;
 }
 
-IAsyncAction ListServices(BluetoothLEDevice device)
+IAsyncAction SelectDeviceServices(const wchar_t* id)
 {
-    if (device)
-    {
         try
         {
-            auto result = co_await device.GetGattServicesAsync();
-
-            if (result.Status() == GattCommunicationStatus::Success)
+	        if (const auto device = BluetoothLEDevice::FromIdAsync(id).get())
             {
-                for (auto const& s : result.Services())
-                {
-                    std::wcout << L"  Service: " << to_wstring_guid(s.Uuid()) << L" (" << s.AttributeHandle() << ")" << std::endl;
+                auto result = co_await device.GetGattServicesAsync();
 
-                    deviceFoundCallback(to_wstring_guid(s.Uuid()).c_str(), L"");
+                if (result.Status() == GattCommunicationStatus::Success)
+                {
+                    deviceServices = result.Services();
+                    for (auto const& s : deviceServices)
+                    {
+                        std::wcout << L"  Service: " << to_wstring_guid(s.Uuid()) << L" (" << s.AttributeHandle() << ")" << std::endl;
+
+                        serviceListCallback(to_wstring_guid(s.Uuid()).c_str());
+                    }
                 }
             }
         }
@@ -54,7 +57,35 @@ IAsyncAction ListServices(BluetoothLEDevice device)
         {
             std::wcerr << L"Failed to get services." << std::endl;
         }
-    }
+
+        co_return;
+}
+
+IAsyncAction SelectSerivceCharacteristic(const wchar_t* uuid)
+{
+	try
+	{
+        for (auto const& s : deviceServices)
+        {
+            if (uuid == to_wstring_guid(s.Uuid()))
+            {
+                GattCharacteristicsResult result = co_await s.GetCharacteristicsAsync();
+
+                if (result.Status() == GattCommunicationStatus::Success)
+                {
+                    for (auto const& c: result.Characteristics())
+                    {
+                        std::wcout << L"  Characteristic: " << to_wstring_guid(c.Uuid()) << std::endl;
+                        serviceListCallback(to_wstring_guid(c.Uuid()).c_str());
+                    }
+                }
+            }
+        }
+	}
+	catch (winrt::hresult_error const& ex)
+	{
+        std::wcerr << L"Failed to get services." << std::endl;
+	}
 
     co_return;
 }
@@ -62,16 +93,10 @@ IAsyncAction ListServices(BluetoothLEDevice device)
 IAsyncAction Watcher_Added(DeviceWatcher sender, DeviceInformation info)
 {
     try {
-        auto device = BluetoothLEDevice::FromIdAsync(info.Id()).get(); // Retrieve the BluetoothLEDevice
-        if (device) {
-            std::wcout << L"Device Added: " << device.Name().c_str() << L" (" << device.BluetoothAddress() << L")" << std::endl;
 
-            ListServices(device);
-
-            if (deviceFoundCallback)
-            {
-                deviceFoundCallback(device.Name().c_str(), std::to_wstring(device.BluetoothAddress()).c_str());
-            }
+        if (deviceFoundCallback)
+        {
+            deviceFoundCallback(info.Name().c_str(), info.Id().c_str());
         }
     }
     catch (winrt::hresult_error const& ex) {
@@ -79,17 +104,6 @@ IAsyncAction Watcher_Added(DeviceWatcher sender, DeviceInformation info)
     }
 
     co_return;
-}
-
-void RegisterCallback(DeviceFoundCallback callback)
-{
-    deviceFoundCallback = callback;
-    std::wcout << L"Callback "<< std::endl;
-}
-
-void SelectDevice(BluetoothLEDevice device)
-{
-    
 }
 
 void StartDeviceWatcher() {
@@ -176,4 +190,26 @@ bool WriteCharacteristic(const std::vector<uint8_t>& data) {
 
     auto status = characteristic.WriteValueAsync(buffer).get();
     return status == GattCommunicationStatus::Success;*/
+}
+
+void DeviceFound(DeviceFoundCallback callback)
+{
+    deviceFoundCallback = callback;
+    std::wcout << L"Callback " << std::endl;
+}
+
+void SelectDevice(const wchar_t* id)
+{
+    //StopDeviceWatcher(); // ¾ê°¡ ¸ØÃçÀÖÀ¸¸é ¼­ºñ½º Á¶È¸°¡ ¾ÈµÊ.
+    SelectDeviceServices(id);
+}
+
+void ServiceList(ServiceListCallback callback)
+{
+    serviceListCallback = callback;
+}
+
+void SelectService(const wchar_t* uuid)
+{
+    SelectSerivceCharacteristic(uuid);
 }
