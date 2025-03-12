@@ -3,6 +3,7 @@
 #pragma comment(lib, "windowsapp")
 using namespace std;
 using namespace winrt;
+using namespace winrt::impl;
 using namespace Windows::Foundation;
 using namespace Windows::Devices::Bluetooth;
 using namespace Windows::Devices::Enumeration;
@@ -14,10 +15,15 @@ using namespace Windows::Devices::Bluetooth::GenericAttributeProfile;
 std::vector<DeviceInformation> bleDevices = {};
 BluetoothLEDevice bleDevice{ nullptr };
 DeviceWatcher deviceWatcher{ nullptr };
+GattDeviceService deviceService{ nullptr };
+
 DeviceFoundCallback deviceFoundCallback = nullptr;
 ServiceListCallback serviceListCallback = nullptr;
+ServiceConfigListCallback serviceConfigListCallback = nullptr;
 
 IVectorView<GattDeviceService> deviceServices;
+IVectorView<GattCharacteristic> characteristics;
+
 
 std::wstring to_wstring_guid(GUID guid) {
     wchar_t buffer[64];
@@ -33,12 +39,14 @@ std::wstring to_wstring_guid(GUID guid) {
     return buffer;
 }
 
+// 커넥트
 IAsyncAction SelectDeviceServices(const wchar_t* id)
 {
         try
         {
 	        if (const auto device = BluetoothLEDevice::FromIdAsync(id).get())
             {
+                bleDevice = device;
                 auto result = co_await device.GetGattServicesAsync();
 
                 if (result.Status() == GattCommunicationStatus::Success)
@@ -48,7 +56,7 @@ IAsyncAction SelectDeviceServices(const wchar_t* id)
                     {
                         std::wcout << L"  Service: " << to_wstring_guid(s.Uuid()) << L" (" << s.AttributeHandle() << ")" << std::endl;
 
-                        serviceListCallback(to_wstring_guid(s.Uuid()).c_str());
+                        serviceConfigListCallback(to_wstring_guid(s.Uuid()).c_str());
                     }
                 }
             }
@@ -61,6 +69,7 @@ IAsyncAction SelectDeviceServices(const wchar_t* id)
         co_return;
 }
 
+// 서비스 선택
 IAsyncAction SelectSerivceCharacteristic(const wchar_t* uuid)
 {
 	try
@@ -69,10 +78,12 @@ IAsyncAction SelectSerivceCharacteristic(const wchar_t* uuid)
         {
             if (uuid == to_wstring_guid(s.Uuid()))
             {
+                deviceService = s;
                 GattCharacteristicsResult result = co_await s.GetCharacteristicsAsync();
 
                 if (result.Status() == GattCommunicationStatus::Success)
                 {
+                    characteristics = result.Characteristics();
                     for (auto const& c: result.Characteristics())
                     {
                         std::wcout << L"  Characteristic: " << to_wstring_guid(c.Uuid()) << std::endl;
@@ -90,20 +101,31 @@ IAsyncAction SelectSerivceCharacteristic(const wchar_t* uuid)
     co_return;
 }
 
-IAsyncAction Watcher_Added(DeviceWatcher sender, DeviceInformation info)
+void Watcher_Added(DeviceWatcher sender, DeviceInformation info)
 {
     try {
-
-        if (deviceFoundCallback)
+        if (deviceWatcher == sender)
         {
-            deviceFoundCallback(info.Name().c_str(), info.Id().c_str());
+            if (deviceFoundCallback)
+            {
+                deviceFoundCallback(info.Name().c_str(), info.Id().c_str());
+            }
         }
     }
     catch (winrt::hresult_error const& ex) {
         std::wcerr << L"Error retrieving device or its advertisement data: " << ex.message().c_str() << std::endl;
     }
+}
 
-    co_return;
+// 업데이트가 있어야 목록을 바로 가지고옴
+void Watcher_Updated(DeviceWatcher sender, DeviceInformationUpdate update)
+{
+    try {
+        
+    }
+    catch (winrt::hresult_error const& ex) {
+        std::wcerr << L"Error retrieving device or its advertisement data: " << ex.message().c_str() << std::endl;
+    }
 }
 
 void StartDeviceWatcher() {
@@ -117,6 +139,7 @@ void StartDeviceWatcher() {
         DeviceInformationKind::AssociationEndpoint); //Signal the watcher to start enumerating the devices immediately
     std::wcout << L"2" << std::endl;
     deviceWatcher.Added(&Watcher_Added);
+    deviceWatcher.Updated(&Watcher_Updated);
 
     deviceWatcher.Start();
     std::wcout << L"BLE 장치 검색 시작..." << std::endl;
@@ -125,6 +148,7 @@ void StartDeviceWatcher() {
 void StopDeviceWatcher() {
     if (deviceWatcher) {
         deviceWatcher.Stop();
+        deviceWatcher = nullptr;
         std::wcout << L"BLE 장치 검색 중지" << std::endl;
     }
 }
@@ -157,11 +181,26 @@ void DiscoverServices() {
     }*/
 }
 
-std::vector<uint8_t> ReadCharacteristic() {
+IAsyncAction CharateristicValueChanged(GattCharacteristic const& characteristic, GattValueChangedEventArgs args)
+{
+    co_return;
+}
+void EnableNotifications(int idx)
+{
+    auto characteristic = characteristics.GetAt(idx);
+    auto notify = characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue::Notify).get();
+
+    if (notify == GattCommunicationStatus::Success)
+    {
+        characteristic.ValueChanged(&CharateristicValueChanged);
+    }
+}
+
+std::vector<uint8_t> ReadCharacteristic(int index) {
     std::vector<uint8_t> data;
     if (!bleDevice) return data;
 
-    /*auto servicesResult = bleDevice.GetGattServicesAsync().get();
+    auto servicesResult = bleDevice.GetGattServicesAsync().get();
     auto service = servicesResult.Services().GetAt(0);
     auto characteristicsResult = service.GetCharacteristicsAsync().get();
     auto characteristic = characteristicsResult.Characteristics().GetAt(0);
@@ -172,14 +211,14 @@ std::vector<uint8_t> ReadCharacteristic() {
         DataReader reader = DataReader::FromBuffer(buffer);
         data.resize(reader.UnconsumedBufferLength());
         reader.ReadBytes(data);
-    }*/
+    }
     return data;
 }
 
 bool WriteCharacteristic(const std::vector<uint8_t>& data) {
     if (!bleDevice) return false;
 
-    /*auto servicesResult = bleDevice.GetGattServicesAsync().get();
+    auto servicesResult = bleDevice.GetGattServicesAsync().get();
     auto service = servicesResult.Services().GetAt(0);
     auto characteristicsResult = service.GetCharacteristicsAsync().get();
     auto characteristic = characteristicsResult.Characteristics().GetAt(0);
@@ -189,7 +228,7 @@ bool WriteCharacteristic(const std::vector<uint8_t>& data) {
     auto buffer = writer.DetachBuffer();
 
     auto status = characteristic.WriteValueAsync(buffer).get();
-    return status == GattCommunicationStatus::Success;*/
+    return status == GattCommunicationStatus::Success;
 }
 
 void DeviceFound(DeviceFoundCallback callback)
@@ -212,4 +251,17 @@ void ServiceList(ServiceListCallback callback)
 void SelectService(const wchar_t* uuid)
 {
     SelectSerivceCharacteristic(uuid);
+}
+
+void ServiceConfigList(ServiceConfigListCallback callback) {
+    serviceConfigListCallback = callback;
+}
+
+void QuitBLE()
+{
+    StopDeviceWatcher();
+    deviceService.Close();
+    bleDevice.Close();
+    deviceService = nullptr;
+    bleDevice = nullptr;
 }
