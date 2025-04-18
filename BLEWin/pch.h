@@ -11,19 +11,20 @@
 
 // 여기에 미리 컴파일하려는 헤더 추가
 #include "framework.h"
-#include <iostream>
-#include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Devices.Bluetooth.h>
-#include <winrt/Windows.Devices.Enumeration.h>
-#include <winrt/Windows.Foundation.Collections.h>
-#include <winrt/Windows.Devices.Bluetooth.Advertisement.h>
 #include <winrt/Windows.Devices.Bluetooth.GenericAttributeProfile.h>
+#include <winrt/Windows.Devices.Enumeration.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Storage.Streams.h>
-#include <string>
-#include <hstring.h>
 #include <unordered_map>
+#include <string>
+#include <vector>
 #include <mutex>
-#include <thread>
-#include <future>
 #include <shared_mutex>
+#include <functional>
+#include <future>
+#include <optional>
+#include <guiddef.h>
+#include <rpc.h>
 #endif //PCH_H

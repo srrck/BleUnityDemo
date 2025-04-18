@@ -24,7 +24,7 @@
     <ProjectGuid>{C04C3F88-4FBE-4241-A338-A6E7760305D4}</ProjectGuid>
     <RootNamespace>TestDll</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
-    <ProjectName>BLEWinConn</ProjectName>
+    <ProjectName>BLEWin</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -149,6 +149,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BLEManager.cpp" />
+    <ClCompile Include="BLEManagerDLL.cpp" />
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
