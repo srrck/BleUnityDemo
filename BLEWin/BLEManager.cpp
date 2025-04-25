@@ -206,6 +206,47 @@ IAsyncAction BLEManager::SubscribeAsync(const wchar_t* deviceId, const wchar_t* 
     co_return;
 }
 
+void BLEManager::ListServices(const wchar_t* deviceId) {
+    auto opt = GetDevice(deviceId);
+    if (!opt) {
+        if (m_callback) m_callback(std::format(L"[BLE] Device not found: {}", deviceId).c_str());
+        return;
+    }
+
+    const auto& services = opt->services;
+    if (!services || services.Size() == 0) {
+        if (m_callback) m_callback(std::format(L"[BLE] No services found for device: {}", deviceId).c_str());
+        return;
+    }
+
+    for (const auto& service : services) {
+        auto uuidStr = ToWStringGuid(service.Uuid());
+        if (m_callback) m_callback(std::format(L"[BLE] Service UUID: {}", uuidStr).c_str());
+    }
+}
+
+void BLEManager::ListCharacteristics(const wchar_t* deviceId, const wchar_t* serviceUuid) {
+    auto opt = GetDevice(deviceId);
+    if (!opt) {
+        if (m_callback) m_callback(std::format(L"[BLE] Device not found: {}", deviceId).c_str());
+        return;
+    }
+
+    const auto& services = opt->services;
+    if (!services || services.Size() == 0) {
+        if (m_callback) m_callback(std::format(L"[BLE] No services found for device: {}", deviceId).c_str());
+        return;
+    }
+
+    for (const auto& characteristic : opt->characteristics) {
+        if (ToWStringGuid(characteristic.Service().Uuid()) == serviceUuid) {
+            auto uuidStr = ToWStringGuid(characteristic.Uuid());
+            if (m_callback) m_callback(std::format(L"[BLE] Characteristic UUID: {}", uuidStr).c_str());
+        }
+    }
+}
+
+
 std::vector<uint8_t> BLEManager::Read(const wchar_t* deviceId, int index) {
     std::vector<uint8_t> data;
     auto opt = GetDevice(deviceId);

@@ -55,6 +55,14 @@ extern "C" {
         if (g_manager) g_manager->Subscribe(deviceId, serviceUuid, characteristicUuid);
     }
 
+    void ListServicesForDevice(const wchar_t* deviceId) {
+        if (g_manager) g_manager->ListServices(deviceId);
+    }
+
+    void ListCharacteristicsForService(const wchar_t* deviceId, const wchar_t* serviceUuid) {
+        if (g_manager) g_manager->ListCharacteristics(deviceId, serviceUuid);
+    }
+
     const uint8_t* ReadCharacteristic(const wchar_t* deviceId, int index, int* length) {
         if (!g_manager) return nullptr;
         g_readBuffer = g_manager->Read(deviceId, index);

@@ -18,6 +18,8 @@ extern "C" {
     BLEMANAGER_API void DisconnectAllDevices();
     BLEMANAGER_API void UnpairDevice(const wchar_t* deviceId);
     BLEMANAGER_API void Subscribe(const wchar_t* deviceId, const wchar_t* serviceUuid, const wchar_t* characteristicUuid);
+    BLEMANAGER_API void ListServicesForDevice(const wchar_t* deviceId);
+    BLEMANAGER_API void ListCharacteristicsForService(const wchar_t* deviceId, const wchar_t* serviceUuid);
     BLEMANAGER_API const uint8_t* ReadCharacteristic(const wchar_t* deviceId, int index, int* length);
     BLEMANAGER_API bool WriteCharacteristic(const wchar_t* deviceId, int index, const uint8_t* data, int length);
     BLEMANAGER_API void ListPairedDevices();
@@ -37,6 +39,8 @@ public:
     void UnpairDevice(const wchar_t* deviceId);
     void Subscribe(const wchar_t* deviceId, const wchar_t* serviceUuid, const wchar_t* characteristicUuid);
     winrt::Windows::Foundation::IAsyncAction SubscribeAsync(const wchar_t* deviceId, const wchar_t* serviceUuid, const wchar_t* characteristicUuid);
+    void ListServices(const wchar_t* deviceId);
+    void ListCharacteristics(const wchar_t* deviceId, const wchar_t* serviceUuid);
     std::vector<uint8_t> Read(const wchar_t* deviceId, int characteristicIndex);
     bool Write(const wchar_t* deviceId, int characteristicIndex, const std::vector<uint8_t>& data);
     void ListPairedDevices();
