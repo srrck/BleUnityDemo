@@ -76,6 +76,12 @@ extern "C" {
         return g_manager->Write(deviceId, index, buffer);
     }
 
+    bool WriteCharacteristicUuid(const wchar_t* deviceId, const wchar_t* serviceUuid, const wchar_t* characteristicUuid, const uint8_t* data, int length) {
+        if (!g_manager || !data || length <= 0) return false;
+        std::vector<uint8_t> buffer(data, data + length);
+        return g_manager->WriteByUuid(deviceId, serviceUuid, characteristicUuid, buffer);
+    }
+
     void ListPairedDevices() {
         if (g_manager) g_manager->ListPairedDevices();
     }

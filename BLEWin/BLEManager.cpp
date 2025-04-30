@@ -187,7 +187,7 @@ IAsyncAction BLEManager::SubscribeAsync(const wchar_t* deviceId, const wchar_t* 
                             reader.ReadBytes(data);
 
                             if (m_callback) {
-                                m_callback(std::format(L"[BLE] Notification received: {} bytes", data.size()).c_str());
+                                m_callback(std::format(L"[BLE] Notification received: {}", EncodeBase64(data)).c_str());
                             }
                             });
 
@@ -267,6 +267,32 @@ bool BLEManager::Write(const wchar_t* deviceId, int index, const std::vector<uin
     writer.WriteBytes(data);
     auto status = opt->characteristics.GetAt(index).WriteValueAsync(writer.DetachBuffer()).get();
     return status == GattCommunicationStatus::Success;
+}
+
+bool BLEManager::WriteByUuid(const wchar_t* deviceId, const wchar_t* serviceUuid, const wchar_t* characteristicUuid, const std::vector<uint8_t>& data) {
+    auto opt = GetDevice(deviceId);
+    if (!opt) return false;
+
+    const auto& services = opt->services;
+    if (!services || services.Size() == 0) {
+        if (m_callback) m_callback(std::format(L"[BLE] No services found for device: {}", deviceId).c_str());
+        return false;
+    }
+
+    // 서비스 탐색
+    for (const auto& characteristic : opt->characteristics) {
+        if (ToWStringGuid(characteristic.Service().Uuid()) == serviceUuid) {
+            if (ToWStringGuid(characteristic.Uuid()) == characteristicUuid) {
+                // 데이터 작성 및 전송
+                DataWriter writer;
+                writer.WriteBytes(data);
+                auto status = characteristic.WriteValueAsync(writer.DetachBuffer()).get();
+                return status == GattCommunicationStatus::Success;
+            }
+        }
+    }
+
+    return false;  // 일치하는 service/characteristic을 찾지 못함
 }
 
 void BLEManager::ListPairedDevices() {
