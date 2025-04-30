@@ -10,6 +10,8 @@
 
 > 이 프로젝트는 Windows BLE 기능 구현을 위해 [adabru/BleWinrtDll](https://github.com/adabru/BleWinrtDll) 프로젝트를 참고했습니다.
 
+> 또한 본 프로젝트의 일부 코드 및 구조는 ChatGPT, Gemini, GitHub Copilot 등 AI 도구의 제안을 기반으로 작성되었습니다.
+
 ## 🎯 주요 기능
 
 - Windows에서 BLE 장치 검색 및 목록 표시
@@ -21,24 +23,18 @@
 
 - **운영체제**: Windows 10 이상
 - **Unity 버전**: 2021.x 이상 권장
-- **DLL 의존성**: BLEManager.dll (WinRT 기반 C++ DLL)
+- **DLL 의존성**: BLEWin.dll (WinRT 기반 C++ DLL)
 - **BLE 동글**: BLE 4.0 이상을 지원하는 어댑터 필요
+- **UnityMainThreadDispatcher**: BLE 알림을 Unity 메인 스레드에서 안전하게 처리하기 위한 필수 유틸리티  
+  설치 방법 👉 [https://github.com/PimDeWitte/UnityMainThreadDispatcher](https://github.com/PimDeWitte/UnityMainThreadDispatcher)
 
 ## ⚙️ 설치 방법
 
 1. 이 저장소를 클론하거나 `.unitypackage` 또는 `.zip`을 다운로드합니다.
-2. Unity에서 프로젝트를 열고, `BLEManager.dll`을 `Assets/Plugins/x86_64/` 폴더에 넣습니다.
-3. `BLEBrowserUI.unity` 씬을 실행합니다.
-4. Scan → 장치 선택 → 서비스 조회 → 특성 Subscribe 순으로 동작합니다.
-
-## 🧩 구성 파일
-
-- `BLEManager.cs` - DLL 호출용 C# 인터페이스
-- `BLEBrowserUI.cs` - 장치 검색 및 연결 UI
-- `BLECharacteristicUI.cs` - 서비스 및 특성 구독 UI
-- `BLEManager.dll` - Windows 전용 BLE 처리 DLL (외부 제공)
-- `*.prefab` - UI 구성 프리팹
-- `BLEBrowserUI.unity` - 전체 흐름 예제 씬
+2. Unity에서 프로젝트를 열고, `BLEWin.dll`을 `Assets/Plugins/x86_64/` 폴더에 넣습니다.
+3. [UnityMainThreadDispatcher](https://github.com/PimDeWitte/UnityMainThreadDispatcher)를 설치합니다.
+4. `SampleScene.unity` 씬을 실행합니다.
+5. Scan → 장치 선택 → 서비스 조회 → 특성 Subscribe 순으로 동작합니다.
 
 ## 📝 라이선스
 
