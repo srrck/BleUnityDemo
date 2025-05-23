@@ -26,19 +26,32 @@ void BLEManager::StartScan(const wchar_t* nameFilter) {
     m_watcher.Added({ this, &BLEManager::DeviceAdded });
     m_watcher.Updated({ this, &BLEManager::DeviceUpdated });
     m_watcher.Start();
-    if (m_callback) m_callback(L"[BLE] Started scanning");
+    if (m_callback) {
+        const auto msg = JsonKeyValues({ {L"startScan", L"Started scanning"} });
+        m_callback(msg.c_str());
+    }
 }
 
 void BLEManager::StopScan() {
     if (m_watcher) {
         m_watcher.Stop();
         m_watcher = nullptr;
-        if (m_callback) m_callback(L"[BLE] Scan stopped");
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"stopScan", L"Scan stopped"} });
+            m_callback(msg.c_str());
+        }
     }
 }
 
 void BLEManager::DeviceAdded(DeviceWatcher const&, DeviceInformation const& info) {
-    if (m_callback) m_callback(std::format(L"[BLE] Found: {}, {}", info.Name().c_str(), info.Id().c_str()).c_str());
+    if (m_callback) {
+        const auto msg = JsonKeyValues({
+			{L"event",L"found"},
+            {L"name", info.Name().c_str()},
+            {L"address",info.Id().c_str()}
+            });
+        m_callback(msg.c_str());
+    }
 }
 
 void BLEManager::DeviceUpdated(DeviceWatcher const&, DeviceInformationUpdate const&) {
@@ -47,7 +60,8 @@ void BLEManager::DeviceUpdated(DeviceWatcher const&, DeviceInformationUpdate con
 
 void BLEManager::DeviceStopped(DeviceWatcher const& sender, IInspectable const&) {
     if (m_callback) {
-        m_callback(L"[BLE] Device scan stopped.");
+        const auto msg = JsonKeyValues({ {L"stopDevice", L"Device scan stopped."} });
+        m_callback(msg.c_str());
     }
 
     // 상태 출력 (선택사항)
@@ -62,7 +76,8 @@ void BLEManager::DeviceStopped(DeviceWatcher const& sender, IInspectable const&)
     }
 
     if (m_callback) {
-        m_callback(std::format(L"[BLE] Watcher status: {}", status).c_str());
+        const auto msg = JsonKeyValues({ {L"stopDevice", std::format(L"Watcher status: {}", status)} });
+        m_callback(msg.c_str());
     }
 }
 
@@ -76,20 +91,29 @@ IAsyncAction BLEManager::ConnectToDeviceAsync(const wchar_t* deviceId)
         {
             std::shared_lock lock(m_mutex);
             if (m_devices.find(deviceId) != m_devices.end()) {
-                if (m_callback) m_callback(std::format(L"[BLE] Already connected: {}",deviceId).c_str());
+                if (m_callback) {
+                    const auto msg = JsonKeyValues({ {L"alreadyConnect", std::format(L"Already connected: {}", deviceId)} });
+                    m_callback(msg.c_str());
+                }
                 co_return;
             }
         }
 
         auto device = co_await winrt::Windows::Devices::Bluetooth::BluetoothLEDevice::FromIdAsync(deviceId);
         if (!device) {
-            if (m_callback) m_callback(std::format(L"[BLE] Failed to connect: null device").c_str());
+            if (m_callback) {
+                const auto msg = JsonKeyValues({ {L"failedConnect", std::format(L"Failed to connect: null device")} });
+                m_callback(msg.c_str());
+            }
             co_return;
         }
 
         auto result = co_await device.GetGattServicesAsync();
         if (result.Status() != winrt::Windows::Devices::Bluetooth::GenericAttributeProfile::GattCommunicationStatus::Success) {
-            if (m_callback) m_callback(std::format(L"[BLE] Failed to get services").c_str());
+            if (m_callback) {
+                const auto msg = JsonKeyValues({ {L"failedService", std::format(L"[BLE] Failed to get services")} });
+                m_callback(msg.c_str());
+            }
             co_return;
         }
 
@@ -109,10 +133,16 @@ IAsyncAction BLEManager::ConnectToDeviceAsync(const wchar_t* deviceId)
         info.characteristics = winrt::single_threaded_vector(std::move(allChars)).GetView();
 
         AddDevice(deviceId, info);
-        if (m_callback) m_callback(std::format(L"[BLE] Connected: {}", deviceId).c_str());
+        if (m_callback) {
+            auto msg = JsonKeyValues({ {L"event", L"connected"}, { L"deviceId", deviceId } });
+            m_callback(msg.c_str());
+        }
     }
     catch (winrt::hresult_error const& ex) {
-        if (m_callback) m_callback(std::format(L"[BLE] Connect exception: {}", std::to_wstring(static_cast<uint32_t>(ex.code()))).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"failedService", std::format(L"[BLE] Connect exception: {}", std::to_wstring(static_cast<uint32_t>(ex.code())))} });
+            m_callback(msg.c_str());
+        }
     }
     co_return;
 }
@@ -123,7 +153,10 @@ void BLEManager::DisconnectDevice(const std::wstring& deviceId) {
     if (it != m_devices.end()) {
         it->second.device.Close();
         m_devices.erase(it);
-        if (m_callback) m_callback(std::format(L"[BLE] Disconnected: {}", deviceId).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"disconnectDevice", std::format(L"Disconnected: {}", deviceId)} });
+            m_callback(msg.c_str());
+        }
     }
 }
 
@@ -131,7 +164,10 @@ void BLEManager::DisconnectAllDevices() {
     std::unique_lock lock(m_mutex);
     for (auto& [_, dev] : m_devices) dev.device.Close();
     m_devices.clear();
-    if (m_callback) m_callback(L"[BLE] All devices disconnected");
+    if (m_callback) {
+        const auto msg = JsonKeyValues({ {L"disconnectAll", L"All devices disconnected"} });
+        m_callback(msg.c_str());
+    }
 }
 
 void BLEManager::UnpairDevice(const wchar_t* deviceId) {
@@ -139,7 +175,8 @@ void BLEManager::UnpairDevice(const wchar_t* deviceId) {
     if (info && info.Pairing().IsPaired()) {
         auto result = info.Pairing().UnpairAsync().get();
         if (result.Status() == DeviceUnpairingResultStatus::Unpaired && m_callback) {
-            m_callback(std::format(L"[BLE] Unpaired: {}", deviceId).c_str());
+            const auto msg = JsonKeyValues({ {L"unpaired", std::format(L"Unpaired: {}", deviceId)} });
+            m_callback(msg.c_str());
         }
     }
 }
@@ -153,7 +190,10 @@ IAsyncAction BLEManager::SubscribeAsync(const wchar_t* deviceId, const wchar_t* 
         // 장치 가져오기
         auto opt = GetDevice(deviceId);
         if (!opt) {
-            if (m_callback) m_callback(std::format(L"[BLE] Device not found: {}", deviceId).c_str());
+            if (m_callback) {
+                const auto msg = JsonKeyValues({ {L"not_found", std::format(L"Device not found: {}", deviceId)} });
+                m_callback(msg.c_str());
+            }
             co_return;
         }
 
@@ -164,7 +204,10 @@ IAsyncAction BLEManager::SubscribeAsync(const wchar_t* deviceId, const wchar_t* 
             if (ToWStringGuid(service.Uuid()) == serviceUuid) {
                 auto charResult = co_await service.GetCharacteristicsAsync();
                 if (charResult.Status() != GattCommunicationStatus::Success) {
-                    if (m_callback) m_callback(std::format(L"[BLE] Failed to get characteristics for service: {}", serviceUuid).c_str());
+                    if (m_callback) {
+                        const auto msg = JsonKeyValues({ {L"not_found", std::format(L"Failed to get characteristics for service: {}", serviceUuid)} });
+                        m_callback(msg.c_str());
+                    }
                     co_return;
                 }
 
@@ -176,7 +219,10 @@ IAsyncAction BLEManager::SubscribeAsync(const wchar_t* deviceId, const wchar_t* 
                             GattClientCharacteristicConfigurationDescriptorValue::Notify);
 
                         if (status != GattCommunicationStatus::Success) {
-                            if (m_callback) m_callback(std::format(L"[BLE] Failed to enable notifications for characteristic: {}", characteristicUuid).c_str());
+                            if (m_callback) {
+                                const auto msg = JsonKeyValues({ {L"failed_enable", std::format(L"Failed to enable notifications for characteristic: {}", characteristicUuid)} });
+                                m_callback(msg.c_str());
+                            }
                             co_return;
                         }
 
@@ -187,21 +233,31 @@ IAsyncAction BLEManager::SubscribeAsync(const wchar_t* deviceId, const wchar_t* 
                             reader.ReadBytes(data);
 
                             if (m_callback) {
-                                m_callback(std::format(L"[BLE] Notification received: {}", EncodeBase64(data)).c_str());
+                                const auto msg = JsonKeyValues({ {L"event", L"notification"},{L"data",EncodeBase64(data)} });
+                                m_callback(msg.c_str());
                             }
                             });
 
-                        if (m_callback) m_callback(std::format(L"[BLE] Subscribed to characteristic: {}", characteristicUuid).c_str());
+                        if (m_callback) {
+                            const auto msg = JsonKeyValues({ {L"subscribed", std::format(L"Subscribed to characteristic: {}", characteristicUuid)}});
+                            m_callback(msg.c_str());
+                        }
                         co_return;
                     }
                 }
             }
         }
 
-        if (m_callback) m_callback(std::format(L"[BLE] Service or characteristic not found: {}, {}", serviceUuid, characteristicUuid).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"not_found", std::format(L"Service or characteristic not found: {}, {}", serviceUuid, characteristicUuid)} });
+            m_callback(msg.c_str());
+        }
     }
     catch (winrt::hresult_error const& ex) {
-        if (m_callback) m_callback(std::format(L"[BLE] Subscribe exception: {}", std::to_wstring(static_cast<uint32_t>(ex.code()))).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"exception", std::format(L"[BLE] Subscribe exception: {}", std::to_wstring(static_cast<uint32_t>(ex.code())))} });
+            m_callback(msg.c_str());
+        }
     }
     co_return;
 }
@@ -209,39 +265,57 @@ IAsyncAction BLEManager::SubscribeAsync(const wchar_t* deviceId, const wchar_t* 
 void BLEManager::ListServices(const wchar_t* deviceId) {
     auto opt = GetDevice(deviceId);
     if (!opt) {
-        if (m_callback) m_callback(std::format(L"[BLE] Device not found: {}", deviceId).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"not_found", std::format(L"Device not found: {}", deviceId)} });
+            m_callback(std::format(L"[BLE] Device not found: {}", deviceId).c_str());
+        }
         return;
     }
 
     const auto& services = opt->services;
     if (!services || services.Size() == 0) {
-        if (m_callback) m_callback(std::format(L"[BLE] No services found for device: {}", deviceId).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"not_found", std::format(L"No services found for device:{}", deviceId)} });
+            m_callback(msg.c_str());
+        }
         return;
     }
 
     for (const auto& service : services) {
         auto uuidStr = ToWStringGuid(service.Uuid());
-        if (m_callback) m_callback(std::format(L"[BLE] Service UUID: {}", uuidStr).c_str());
+        if (m_callback) {
+            auto msg = JsonKeyValues({ {L"event",L"service"},{L"uuid", uuidStr}});
+            m_callback(msg.c_str());
+        }
     }
 }
 
 void BLEManager::ListCharacteristics(const wchar_t* deviceId, const wchar_t* serviceUuid) {
     auto opt = GetDevice(deviceId);
     if (!opt) {
-        if (m_callback) m_callback(std::format(L"[BLE] Device not found: {}", deviceId).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"not_found", std::format(L"Device not found: {}", deviceId)} });
+            m_callback(std::format(L"[BLE] Device not found: {}", deviceId).c_str());
+        }
         return;
     }
 
     const auto& services = opt->services;
     if (!services || services.Size() == 0) {
-        if (m_callback) m_callback(std::format(L"[BLE] No services found for device: {}", deviceId).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"not_found", std::format(L"[BLE] No services found for device: {}", deviceId)} });
+            m_callback(msg.c_str());
+        }
         return;
     }
 
     for (const auto& characteristic : opt->characteristics) {
         if (ToWStringGuid(characteristic.Service().Uuid()) == serviceUuid) {
             auto uuidStr = ToWStringGuid(characteristic.Uuid());
-            if (m_callback) m_callback(std::format(L"[BLE] Characteristic UUID: {}", uuidStr).c_str());
+            if (m_callback) {
+                auto msg = JsonKeyValues({ {L"event",L"characteristic"},{L"uuid", uuidStr} });
+                m_callback(msg.c_str());
+            }
         }
     }
 }
@@ -275,7 +349,10 @@ bool BLEManager::WriteByUuid(const wchar_t* deviceId, const wchar_t* serviceUuid
 
     const auto& services = opt->services;
     if (!services || services.Size() == 0) {
-        if (m_callback) m_callback(std::format(L"[BLE] No services found for device: {}", deviceId).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"not_found", std::format(L"No services found for device: {}", deviceId)} });
+            m_callback(msg.c_str());
+        }
         return false;
     }
 
@@ -299,14 +376,20 @@ void BLEManager::ListPairedDevices() {
     auto selector = BluetoothLEDevice::GetDeviceSelectorFromPairingState(true);
     auto devices = DeviceInformation::FindAllAsync(selector).get();
     for (auto const& dev : devices) {
-        if (m_callback) m_callback(std::format(L"[BLE] Paired: {}", dev.Name().c_str()).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"pairedList", std::format(L"Paired: {}", dev.Name().c_str())} });
+            m_callback(std::format(L"[BLE] Paired: {}", dev.Name().c_str()).c_str());
+        }
     }
 }
 
 void BLEManager::ListConnectedDevices() {
     std::shared_lock lock(m_mutex);
     for (auto& [id, _] : m_devices) {
-        if (m_callback) m_callback(std::format(L"[BLE] Connected: {}", id).c_str());
+        if (m_callback) {
+            const auto msg = JsonKeyValues({ {L"connectedList", std::format(L"Connected: {}", id)} });
+            m_callback(msg.c_str());
+        }
     }
 }
 
@@ -361,4 +444,26 @@ std::wstring BLEManager::EncodeBase64(const std::vector<uint8_t>& data) {
     if (valb > -6) result.push_back(chars[((val << 8) >> (valb + 8)) & 0x3F]);
     while (result.size() % 4) result.push_back('=');
     return std::wstring(result.begin(), result.end());
+}
+
+std::wstring BLEManager::JsonKeyValues(const std::vector<std::pair<std::wstring, std::wstring>>& kvs) {
+    std::wstring result = L"{";
+    for (size_t i = 0; i < kvs.size(); ++i) {
+        if (i > 0) result += L", ";
+        result += L"\"";
+        for (wchar_t ch : kvs[i].first) {
+            if (ch == L'\"') result += L"\\\"";
+            else if (ch == L'\\') result += L"\\\\";
+            else result += ch;
+        }
+        result += L"\": \"";
+        for (wchar_t ch : kvs[i].second) {
+            if (ch == L'\"') result += L"\\\"";
+            else if (ch == L'\\') result += L"\\\\";
+            else result += ch;
+        }
+        result += L"\"";
+    }
+    result += L"}";
+    return result;
 }

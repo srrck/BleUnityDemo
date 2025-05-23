@@ -72,4 +72,5 @@ private:
 
     std::wstring ToWStringGuid(GUID guid);
     std::wstring EncodeBase64(const std::vector<uint8_t>& data);
+    std::wstring JsonKeyValues(const std::vector<std::pair<std::wstring, std::wstring>>& kvs);
 };
