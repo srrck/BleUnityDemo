@@ -45,12 +45,17 @@ void BLEManager::StopScan() {
 
 void BLEManager::DeviceAdded(DeviceWatcher const&, DeviceInformation const& info) {
     if (m_callback) {
-        const auto msg = JsonKeyValues({
-			{L"event",L"found"},
-            {L"name", info.Name().c_str()},
-            {L"address",info.Id().c_str()}
-            });
-        m_callback(msg.c_str());
+        if (info.Name().empty()) return;
+
+        if (info.Properties().HasKey(L"System.Devices.Aep.Bluetooth.Le.IsConnectable"))
+        {
+            const auto msg = JsonKeyValues({
+               {L"event",L"found"},
+               {L"name", info.Name().c_str()},
+               {L"address",info.Id().c_str()}
+                });
+            m_callback(msg.c_str());
+        }
     }
 }
 
